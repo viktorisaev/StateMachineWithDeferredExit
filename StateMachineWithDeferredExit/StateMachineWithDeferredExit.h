@@ -30,8 +30,8 @@ namespace StateMachineWithDeferredExit
 		typedef std::tuple<bool, ISingleState*> PossibleNextStateType;
 
 	public:		// func
-		virtual void AddConnection(Transition *_Transition) = 0;
-		virtual PossibleNextStateType GetPossibleNewState() const = 0;      // null=no active connection, State=newxt active state
+		virtual void AddConnection(const Transition &_Transition) = 0;
+		virtual PossibleNextStateType GetPossibleNewState() = 0;      // null=no active connection, State=newxt active state
 
 		virtual void OnEnter() = 0;
 		virtual void OnExit() = 0;  // should call OnExitDone when done
@@ -86,7 +86,7 @@ namespace StateMachineWithDeferredExit
 	///////////////////////////////////////////////////////////////////////////
 	// Classes
 
-	class SingleState abstract : public ISingleState
+	class SingleState : public ISingleState
 	{
 	public:		// func
 		SingleState(IStateMachine *_machine)
@@ -98,12 +98,12 @@ namespace StateMachineWithDeferredExit
 
 
 		// real state methods
-		void OnEnter() = 0;
-		void OnExit() = 0;
+		virtual void OnEnter() = 0;
+		virtual void OnExit() = 0;
 
 
 
-		void AddConnection(Transition _Connection)
+		void AddConnection(const Transition &_Connection) override
 		{
 			m_Connections.push_back(_Connection);
 		}
@@ -112,7 +112,7 @@ namespace StateMachineWithDeferredExit
 
 
 		// null=no active connection, State=newxt active state
-		PossibleNextStateType GetPossibleNewState() const
+		PossibleNextStateType GetPossibleNewState() override
 		{
 			for (int i = 0, ei = m_Connections.size(); i < ei; ++i)
 			{
@@ -185,12 +185,15 @@ namespace StateMachineWithDeferredExit
 
 		void SomeConditionUpdated()
 		{
-			// scan through condition of active state and check for possible transitions
-			ISingleState::PossibleNextStateType _possibleNewState = m_CurrentState->GetPossibleNewState();
-
-			if (std::get<0>(_possibleNewState))    // if some condition met
+			if (m_CurrentState)	// could be nullptr if pre-setup condition
 			{
-				GotoState(std::get<1>(_possibleNewState));   // null=done as next state
+				// scan through condition of active state and check for possible transitions
+				ISingleState::PossibleNextStateType _possibleNewState = m_CurrentState->GetPossibleNewState();
+
+				if (std::get<0>(_possibleNewState))    // if some condition met
+				{
+					GotoState(std::get<1>(_possibleNewState));   // null=done as next state
+				}
 			}
 		}
 
@@ -291,6 +294,46 @@ namespace StateMachineWithDeferredExit
 
 
 
+
+	class TriggerMachineCondition : public ICondition
+	{
+	public:		// func
+		TriggerMachineCondition(IStateMachine *_Machine, bool _IsAutoReset = true)
+		{
+			m_Machine = _Machine;
+			m_IsAutoReset = _IsAutoReset;
+			m_Condition = false;
+		}
+
+		bool IsConditionActive() override
+		{
+			return m_Condition;
+		}
+
+		void SetCondition(bool _cond) override
+		{
+			// store condition value
+			SetupCondition(_cond);
+
+			// react on value changed
+			m_Machine->SomeConditionUpdated();
+			if (m_IsAutoReset)
+			{
+				m_Condition = false;
+			}
+		}
+
+		void SetupCondition(bool _cond)
+		{
+			m_Condition = _cond;
+		}
+
+	private:	// data
+		bool m_Condition;
+		IStateMachine *m_Machine;
+		bool m_IsAutoReset;
+
+	};
 
 
 
