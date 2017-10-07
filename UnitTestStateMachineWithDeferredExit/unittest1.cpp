@@ -101,6 +101,28 @@ public:
 		}
 
 
+		// state machine with two states and initially available transition between them
+		TEST_METHOD(TransitionBetweenTwoStatesInitiallyAvailable)
+		{
+			TestState1 state1 = TestState1(m_StateMachine);
+			TestState1 state2 = TestState1(m_StateMachine);
+
+			TriggerMachineCondition jumpCond = TriggerMachineCondition(m_StateMachine, true);
+			Transition transition = Transition(&jumpCond, &state2);
+			state1.AddConnection(transition);
+
+			// initially setup condition
+			jumpCond.SetupCondition(true);
+
+			m_StateMachine->SetStartState(&state1);
+			m_StateMachine->RunFromStartState();
+
+			Assert::AreEqual(2, state1.state);
+			Assert::AreEqual(1, state2.state);
+		}
+
+
+
 	private:	// data
 		StateMachine *m_StateMachine;
 

@@ -185,7 +185,7 @@ namespace StateMachineWithDeferredExit
 
 		void SomeConditionUpdated()
 		{
-			if (m_CurrentState)	// could be nullptr if pre-setup condition
+			if (m_CurrentState != nullptr)	// could be nullptr if pre-setup condition
 			{
 				// scan through condition of active state and check for possible transitions
 				ISingleState::PossibleNextStateType _possibleNewState = m_CurrentState->GetPossibleNewState();
@@ -256,7 +256,8 @@ namespace StateMachineWithDeferredExit
 			// 3) enter new state, m_CurrentState is already points to new state to enter
 			if (m_CurrentState != nullptr)
 			{
-				m_CurrentState->OnEnter();   // enter new state
+				m_CurrentState->OnEnter();	// enter new state
+				SomeConditionUpdated();		// check for possible immediate transaction and perform it if exists
 			}
 			else
 			{
