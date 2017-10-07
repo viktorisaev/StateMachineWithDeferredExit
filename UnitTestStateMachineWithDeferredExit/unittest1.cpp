@@ -94,7 +94,7 @@ public:
 			Assert::AreEqual(state1.state, 1);
 
 			// change state
-			jumpCond.SetCondition(true);
+			jumpCond.SignalCondition(true);
 
 			Assert::AreEqual(2, state1.state);
 			Assert::AreEqual(1, state2.state);
@@ -112,7 +112,7 @@ public:
 			state1.AddConnection(transition);
 
 			// initially setup condition
-			jumpCond.SetupCondition(true);
+			jumpCond.SetCondition(true);
 
 			m_StateMachine->SetStartState(&state1);
 			m_StateMachine->RunFromStartState();

@@ -7,3 +7,7 @@
 #endif
 
 #include <windows.h>
+
+// std
+#include <tuple>
+#include <vector>

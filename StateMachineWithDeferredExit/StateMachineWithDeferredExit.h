@@ -2,9 +2,8 @@
 
 #pragma once
 
-// std
-#include <tuple>
-#include <vector>
+#include "pch.h"
+
 
 
 namespace StateMachineWithDeferredExit
@@ -17,18 +16,18 @@ namespace StateMachineWithDeferredExit
 	{
 	public:		// func
 		virtual bool IsConditionActive() = 0;
-		virtual void SetCondition(bool _cond) = 0;
+		virtual void SignalCondition(bool _cond) = 0;	// activate condition with a value, causing state change
 	};
 
 
+
 	class Transition;	// used in ISingleState
+	class ISingleState;
+	typedef std::tuple<bool, ISingleState*> PossibleNextStateType;
 
 	// single state
 	class ISingleState abstract
 	{
-	public:
-		typedef std::tuple<bool, ISingleState*> PossibleNextStateType;
-
 	public:		// func
 		virtual void AddConnection(const Transition &_Transition) = 0;
 		virtual PossibleNextStateType GetPossibleNewState() = 0;      // null=no active connection, State=newxt active state
@@ -59,21 +58,9 @@ namespace StateMachineWithDeferredExit
 	class Transition
 	{
 	public:		// func
-		Transition(ICondition *_ConditionToJump, ISingleState *_StateToJumpTo)
-		{
-			m_ConditionToJump = _ConditionToJump;
-			m_StateToJumpTo = _StateToJumpTo;
-		}
-
-		bool IsConditionMet() const
-		{
-			return m_ConditionToJump->IsConditionActive();
-		}
-
-		ISingleState* GetStateToJumpTo() const
-		{
-			return m_StateToJumpTo;
-		}
+		Transition(ICondition *_ConditionToJump, ISingleState *_StateToJumpTo);
+		bool IsConditionMet() const;
+		ISingleState* GetStateToJumpTo() const;
 
 	private:	// data
 		ICondition *m_ConditionToJump;
@@ -89,52 +76,17 @@ namespace StateMachineWithDeferredExit
 	class SingleState : public ISingleState
 	{
 	public:		// func
-		SingleState(IStateMachine *_machine)
-		{
-			m_Machine = _machine;
-
-//			m_Connections = new List<Transition>();
-		}
-
+		SingleState(IStateMachine *_machine);
 
 		// real state methods
 		virtual void OnEnter() = 0;
 		virtual void OnExit() = 0;
 
-
-
-		void AddConnection(const Transition &_Connection) override
-		{
-			m_Connections.push_back(_Connection);
-		}
-
-
-
-
-		// null=no active connection, State=newxt active state
-		PossibleNextStateType GetPossibleNewState() override
-		{
-			for (int i = 0, ei = m_Connections.size(); i < ei; ++i)
-			{
-				if (m_Connections[i].IsConditionMet())
-				{
-					return PossibleNextStateType(true, m_Connections[i].GetStateToJumpTo());
-				}
-			}
-
-			// nothing is met, return "no jump"
-			return PossibleNextStateType(false, nullptr);
-		}
-
-
-
+		void AddConnection(const Transition &_Connection) override;
+		PossibleNextStateType GetPossibleNewState() override;
+		
 		// inform a machine that state is finalized its exit and could be safely switched
-		void ConfirmExitRequestFinalized()
-		{
-			m_Machine->OnStateExited();
-		}
-
-
+		void ConfirmExitRequestFinalized();
 
 	protected:	// data
 		IStateMachine *m_Machine;  // a machine to inform the state is done and want to exit
@@ -146,140 +98,21 @@ namespace StateMachineWithDeferredExit
 
 
 
-
-
-
 	class StateMachine : public IStateMachine
 	{
 	public:		// func
-
-#pragma region Setup
-
-		StateMachine()
-		{
-			m_CurrentState = nullptr;
-		}
-
-		void SetStartState(ISingleState *_StartState)
-		{
-			m_StartState = _StartState;
-		}
-
-
-		void RunFromStartState()
-		{
-			m_IsExitRequested = false;
-			GotoState(m_StartState);
-		}
-
-
-		void SetDoneCondition(ICondition *_MachineDoneCondition)
-		{
-			m_MachineDoneCondition = _MachineDoneCondition;   // to be called when machine done in OnStateExited
-		}
-
-#pragma endregion
-
-
-#pragma region ChangeState
-
-		void SomeConditionUpdated()
-		{
-			if (m_CurrentState != nullptr)	// could be nullptr if pre-setup condition
-			{
-				// scan through condition of active state and check for possible transitions
-				ISingleState::PossibleNextStateType _possibleNewState = m_CurrentState->GetPossibleNewState();
-
-				if (std::get<0>(_possibleNewState))    // if some condition met
-				{
-					GotoState(std::get<1>(_possibleNewState));   // null=done as next state
-				}
-			}
-		}
-
-
-		void GotoState(ISingleState *_newState)
-		{
-			// 1) initiate exit from current state (to be continued in "ExitIsDone")
-			// 2) save next state
-			if (m_CurrentState == nullptr)
-			{
-				m_CurrentState = _newState;
-				OnStateExited();
-			}
-			else
-			{
-				RequestExitIfAvailable(_newState);
-			}
-		}
-
-
-		void RequestExitIfAvailable(ISingleState *_newState)
-		{
-			ISingleState *_lastState = m_CurrentState;
-			m_CurrentState = _newState;     // replace state even if already in exit
-			if (!m_IsExitRequested)
-			{
-				m_IsExitRequested = true;
-				_lastState->OnExit();
-				// to be continued in "OnStateExited"
-			}
-		}
-
-
-#pragma endregion
-
-
-#pragma region Exit
-
-			// used by parent machine to inform sub-machine
-		void ExitCurrentState(OnMachineIsDoneDelegate _OnMachineExitCurrentState)
-		{
-			m_OnMachineExitCurrentState = _OnMachineExitCurrentState;   // to be called when exited
-
-			if (m_CurrentState != nullptr)     // current state could be "null" if machine is done
-			{
-				RequestExitIfAvailable(nullptr);   // request exit and go to "null" (done) state
-			}
-			else
-			{
-				OnStateExited();
-			}
-		}
-
-
+		StateMachine();
+		void SetStartState(ISingleState *_StartState);
+		void RunFromStartState();
+		void SetDoneCondition(ICondition *_MachineDoneCondition);
+		void SomeConditionUpdated();
+		void GotoState(ISingleState *_newState);
+		void RequestExitIfAvailable(ISingleState *_newState);
+		void ExitCurrentState(OnMachineIsDoneDelegate _OnMachineExitCurrentState);	// used by parent machine to inform sub-machine
 
 		// callback after current state finalized its exit and could be switched safe
 		// m_CurrentState already points to a new state to enter
-		void OnStateExited()
-		{
-			// 3) enter new state, m_CurrentState is already points to new state to enter
-			if (m_CurrentState != nullptr)
-			{
-				m_CurrentState->OnEnter();	// enter new state
-				SomeConditionUpdated();		// check for possible immediate transaction and perform it if exists
-			}
-			else
-			{
-				if (m_OnMachineExitCurrentState != nullptr)    // a callback could be assigned to report state exit
-				{
-					m_OnMachineExitCurrentState();  // report state exited
-					m_OnMachineExitCurrentState = nullptr;
-				}
-				else
-				{
-					m_MachineDoneCondition->SetCondition(true);      // report machine is done
-				}
-			}
-
-			m_IsExitRequested = false;
-		}
-
-
-
-
-#pragma endregion
-
+		void OnStateExited();
 
 	protected:	// data
 		ISingleState *m_CurrentState;
@@ -295,39 +128,13 @@ namespace StateMachineWithDeferredExit
 
 
 
-
 	class TriggerMachineCondition : public ICondition
 	{
 	public:		// func
-		TriggerMachineCondition(IStateMachine *_Machine, bool _IsAutoReset = true)
-		{
-			m_Machine = _Machine;
-			m_IsAutoReset = _IsAutoReset;
-			m_Condition = false;
-		}
-
-		bool IsConditionActive() override
-		{
-			return m_Condition;
-		}
-
-		void SetCondition(bool _cond) override
-		{
-			// store condition value
-			SetupCondition(_cond);
-
-			// react on value changed
-			m_Machine->SomeConditionUpdated();
-			if (m_IsAutoReset)
-			{
-				m_Condition = false;
-			}
-		}
-
-		void SetupCondition(bool _cond)
-		{
-			m_Condition = _cond;
-		}
+		TriggerMachineCondition(IStateMachine *_Machine, bool _IsAutoReset = true);
+		bool IsConditionActive() override;
+		void SignalCondition(bool _cond) override;
+		void SetCondition(bool _cond);	// set condition flag but do not request for state change
 
 	private:	// data
 		bool m_Condition;
